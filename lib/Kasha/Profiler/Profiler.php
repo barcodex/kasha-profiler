@@ -22,9 +22,6 @@ class Profiler
 	/** @var array */
 	public $timerTypes = array();
 
-	/** @var ProfilerReporterInterface */
-	private $reporter = null;
-
 	public function __construct()
 	{
 		$this->timeStart = self::microtimeFloat();
@@ -40,7 +37,7 @@ class Profiler
 
 	/**
 	 * @return float
-	 */
+     */
 	public function getProfilerThreshold()
 	{
 		return $this->profilerThreshold;
@@ -52,14 +49,6 @@ class Profiler
 	public function setProfilerThreshold($profilerThreshold)
 	{
 		$this->profilerThreshold = 1.0 * $profilerThreshold;
-	}
-
-	/**
-	 * @param $reporter ProfilerReporterInterface
-	 */
-	public function setProfilerReporter($reporter)
-	{
-		$this->reporter = $reporter;
 	}
 
     /**
@@ -144,7 +133,7 @@ class Profiler
 		$this->timers[$cnt] = array('started' => self::microtimeFloat());
 		$this->timerTypes[$type][] = $cnt;
 
-		return $cnt + 1;
+		return $cnt;
 	}
 
     /**
@@ -159,7 +148,7 @@ class Profiler
 		$output = false;
 		if (isset($this->timers[$id])) {
             $output = $this->finalizeTimerById($id, self::microtimeFloat(), $message);
-		}
+        }
 
 		return $output;
 	}

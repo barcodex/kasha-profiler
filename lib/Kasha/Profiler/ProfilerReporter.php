@@ -2,20 +2,16 @@
 
 namespace Kasha\Profiler;
 
-/**
- * Example implementation of ProfilerReporterInterface.
- *  Implement this interface in the context of your application.
- */
-class ProfilerReporter implements ProfilerReporterInterface
+class ProfilerReporter
 {
 	/**
-	 * @param Profiler $profiler
 	 * @param string $channel
 	 *
 	 * @return mixed|void
 	 */
-	public function send($profiler, $channel = '')
+	public function send($channel = '')
 	{
+        $profiler = Profiler::getInstance();
 		$messages = $profiler->getMilestones();
 		$started = $profiler->getTimeStart();
 		if (count($messages) > 0) {
