@@ -14,16 +14,13 @@ class Profiler
 	private $timeStart;
 
 	/** @var array */
-	public $messages = array();
+	public $milestones = array();
 
 	/** @var array */
 	public $timers = array();
 
 	/** @var array */
 	public $timerTypes = array();
-
-	/** @var array */
-	public $timersStarted = array();
 
 	/** @var ProfilerReporterInterface */
 	private $reporter = null;
@@ -65,7 +62,12 @@ class Profiler
 		$this->reporter = $reporter;
 	}
 
-	public static function getInstance()
+    /**
+     * Profiler class is a singleton.
+     *  This method returns the instance for calling non-static functions when required.
+     * @return Profiler|null
+     */
+    public static function getInstance()
 	{
 		if (is_null(self::$instance)) {
 			self::$instance = new Profiler();
@@ -74,15 +76,55 @@ class Profiler
 		return self::$instance;
 	}
 
-	public function getMessages()
+	public function getMilestones()
 	{
-		return $this->messages;
+		return $this->milestones;
 	}
 
-	public function getTimers()
+    /**
+     * Lists all saved timers (that reach the threshold value)
+     *
+     * @return array
+     */
+    public function getTimers()
 	{
-		return $this->timers;
+        $output = array();
+
+        foreach ($this->timers as $timer) {
+            if (isset($timer['stopped']) && isset($timer['duration'])) {
+                if ($this->profilerThreshold == 0.0 || $timer['duration'] > $this->profilerThreshold) {
+                    $output[] = $timer;
+                }
+            }
+        }
+
+		return $output;
 	}
+
+    /**
+     * Lists all saved timers (that reach the threshold value) by given $type
+     *
+     * @param string $type
+     * @return array
+     */
+    public function getTypedTimers($type = '')
+    {
+        $output = array();
+
+        $types = ($type == '') ? $this->timerTypes : array($type); // if $type not provided, return all known types
+        foreach ($types as $type) {
+            foreach ($this->timerTypes[$type] as $timerId) {
+                $timer = $this->timers[$timerId];
+                if (isset($timer['stopped']) && isset($timer['duration'])) {
+                    if ($this->profilerThreshold == 0.0 || $timer['duration'] > $this->profilerThreshold) {
+                        $output[$type][] = $timer;
+                    }
+                }
+            }
+        }
+
+        return $output;
+    }
 
 	/**
 	 * Return timestamp with microsecond precision (PHP 4 compatible)
@@ -105,21 +147,25 @@ class Profiler
 		return $cnt + 1;
 	}
 
-	public function finalizeTimer($id, $message)
+    /**
+     * Finalizes the timer and returns its data (or false if such timer is not set)
+     *
+     * @param $id
+     * @param $message
+     * @return bool
+     */
+    public function finalizeTimer($id, $message)
 	{
 		$output = false;
 		if (isset($this->timers[$id])) {
-			$this->timers[$id]['stopped'] = self::microtimeFloat();
-			$this->timers[$id]['duration'] = $this->timers[$id]['stopped'] - $this->timers[$id]['started'];
-			$this->timers[$id]['message'] = $message;
-			$output = $this->timers[$id];
+            $output = $this->finalizeTimerById($id, self::microtimeFloat(), $message);
 		}
 
 		return $output;
 	}
 
 	/**
-	 * Finalize all timers of given type with the same timestamp
+	 * Finalize all timers of given type with the same timestamp and message
 	 *
 	 * @param string $type
 	 * @param string $message
@@ -132,10 +178,7 @@ class Profiler
 		if (isset($this->timerTypes[$type])) {
 			$stoppedTimestamp = self::microtimeFloat();
 			foreach($this->timerTypes[$type] as $id) {
-				$this->timers[$id]['stopped'] = $stoppedTimestamp;
-				$this->timers[$id]['duration'] = $stoppedTimestamp - $this->timers[$id]['started'];
-				$this->timers[$id]['message'] = $message;
-				$output[] = $this->timers[$id];
+                $output[] = $this->finalizeTimerById($id, $stoppedTimestamp, $message);
 			}
 		}
 
@@ -180,26 +223,16 @@ class Profiler
 		return self::getInstance()->finalizeTypedTimers($type, $message);
 	}
 
-
-
 	/**
-	 * Registers timestamp with microsecond precision and descriptive text
+	 * Registers milestone timestamp with microsecond precision and descriptive text
 	 *
 	 * @param string $text
-	 * @param float $activityStarted
 	 */
-	public function addMessage($text, $activityStarted = null)
+	public function addMilestone($text)
 	{
-		$activityEnded = self::microtimeFloat();
-		$totalDuration = $activityEnded - $this->timeStart;
-		$activityDuration = null;
-		if ($activityStarted !== null) {
-			$activityDuration = $activityEnded - $activityStarted;
-			$text .= sprintf(" in %0.4f milliseconds", $activityDuration * 1000);
-		}
-		if ($activityStarted === null || $activityDuration > $this->profilerThreshold) {
-			$this->messages[] = array('time' => sprintf("%0.4f", $totalDuration), 'text' => $text);
-		}
+		$milestoneTimestamp = self::microtimeFloat();
+		$milestoneOffset = $milestoneTimestamp - $this->timeStart;
+        $this->milestones[] = array('time' => sprintf("%0.4f", $milestoneOffset), 'text' => $text);
 	}
 
 	public function sendReport($channel = '')
@@ -208,5 +241,22 @@ class Profiler
 			$this->reporter->send($this, $channel);
 		}
 	}
+
+    /**
+     * Finalizes the timer by setting its "stopped", "duration" and "message" parameters
+     *
+     * @param $id
+     * @param $timestamp
+     * @param $message
+     * @return mixed
+     */
+    private function finalizeTimerById($id, $timestamp, $message)
+    {
+        $this->timers[$id]['stopped'] = self::microtimeFloat();
+        $this->timers[$id]['duration'] = $timestamp - $this->timers[$id]['started'];
+        $this->timers[$id]['message'] = $message;
+
+        return $this->timers[$id];
+    }
 
 }
